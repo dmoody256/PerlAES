@@ -25,10 +25,12 @@ my @key3 = (0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
 
 
 
-my $key = hextoasciistring('603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4');
+my $key =     hextoasciistring('2b7e151628aed2a6abf7158809cf4f3c');
 my $phrase =  hextoasciistring('6bc1bee22e409f96e93d7e117393172a');
 
 encryptblock($phrase, $key);
+
+
 
 
 #2f2bfb67c5009972c92eaa0d866737b26efdb4a35648646ac365a5e113d16434
@@ -41,12 +43,24 @@ sub Encrypt{
 
 }
 
+sub column_major{
+	
+	my $block_ref = shift;
+	my @newblock;
+	for my $pos (0..3){
+		for my $pos2 (0..3){
+			$newblock[$pos*4+$pos2] = @{$block_ref}[$pos2*4+$pos];
+		}
+	}
+	return @newblock;
+}
+
 sub encryptblock{
 	my $phrase = shift;
 	my $keystring = shift;
 	my $keylength = length($keystring);
-	
 	my @state = string_to_key($phrase);
+	@state = column_major(\@state);
 	
 	while(scalar(@state) < 16){
 		push @state, 0;
@@ -54,13 +68,12 @@ sub encryptblock{
 	
 	my $stateref = \@state;
 	
-	
 	my @key = string_to_key($keystring);
 
 	print "key = \n";
 	print_hexkey(@key);
 	
-	my @roundkeys = expand_key(\@key);
+	my @roundkeys = expand_key128(\@key);
 	print "roundkey = \n";
 	print_hexkey(@key);
 	
@@ -69,35 +82,51 @@ sub encryptblock{
 	print "\n";
 	
 	
-	
 	if($keylength == 16){
-	
-		AddRoundKey($stateref, $roundkeys[0]);
 		
-		for my $round (1..8){
+		print "RoundKey 0\n";
+		
+		
+		AddRoundKey($stateref, $roundkeys[0]);
+		print "After AddRoundKey\n";
+		print_block(@{$stateref});
+		
+		for my $round (1..9){
+			
 			round($stateref, $roundkeys[$round]);
+			print "RoundKey $round\n";
 		}
 		
-		SubBytes($stateref);
-		ShiftRows($stateref);
-		AddRoundKey($stateref, $roundkeys[14]);
 		
-		print_hexkey(@{$stateref});
+		
+		
+		SubBytes($stateref);
+		print "After SubBytes\n";
+		print_block(@{$stateref});
+	
+		ShiftRows($stateref);
+		print "After ShiftRows\n";
+		print_block(@{$stateref});
+		print "RoundKey 0\n";
+		AddRoundKey($stateref, $roundkeys[10]);
+		
+		
+		print_block(@{$stateref});
 	}
 	elsif($keylength == 24){
 	
 	}
 	elsif($keylength == 32){
 		
+		print_block(@{$stateref});
+		print "\n";
 		AddRoundKey($stateref, $roundkeys[0]);
-		
-		print_hexkey(string_to_key($roundkeys[0]));
+		print_block(@{$stateref});
 		
 		for my $round (1..13){
-			print_hexkey(string_to_key($roundkeys[$round]));
 			round($stateref, $roundkeys[$round]);
 		}
-		print_hexkey(string_to_key($roundkeys[14]));
+		
 		SubBytes($stateref);
 		ShiftRows($stateref);
 		AddRoundKey($stateref, $roundkeys[14]);
@@ -156,10 +185,23 @@ sub round{
 	my $stateref = shift;
 	my $roundkey = shift;
 	
+	
+	
 	SubBytes($stateref);
+	print "After SubBytes\n";
+	print_block(@{$stateref});
+	
 	ShiftRows($stateref);
+	print "After ShiftRows\n";
+	print_block(@{$stateref});
+	
 	MixColumns($stateref);
+	print "After MixColumns\n";
+	print_block(@{$stateref});
+	
 	AddRoundKey($stateref, $roundkey);
+	print "After AddRoundKey\n";
+	print_block(@{$stateref});
 	
 }
 
@@ -192,23 +234,22 @@ sub expand_and_print{
 	
 	print "\n";
 
-}
-
-			
+}	
 
 sub AddRoundKey{
 
 	my $stateref = shift;
 	my $roundkey = shift;
+	
 	my @roundkeyarray = string_to_key($roundkey);
-	
+	@roundkeyarray = column_major(\@roundkeyarray);
+	print_block(@roundkeyarray);
 	my $bytes = scalar(@{$stateref});
-	
-	
 	
 	for(my $count = 0; $count < $bytes; $count++){
 		@{$stateref}[$count] = @{$stateref}[$count] ^ $roundkeyarray[$count];
 	}
+	
 }
 
 sub SubBytes{
@@ -226,6 +267,7 @@ sub ShiftRows{
 	my $stateref = shift;
 	my $bytes = scalar(@{$stateref});
 	
+	
 	if ($bytes == 16){
 		for my $count (4..6){
 		swapper(\@{$stateref}[$count], \@{$stateref}[$count+1]);
@@ -234,8 +276,11 @@ sub ShiftRows{
 		for my $count (8..9){
 			swapper(\@{$stateref}[$count], \@{$stateref}[$count+2]);
 		}
-		
-		swapper(\@{$stateref}[12], \@{$stateref}[15]);
+		my $revcount = 15;
+		for my $count (13..15){
+			swapper(\@{$stateref}[$revcount], \@{$stateref}[$revcount-1]);
+			$revcount--;
+		}
 	}
 	elsif ($bytes == 24){
 		for my $count (6..10){
@@ -263,6 +308,8 @@ sub ShiftRows{
 			swapper(\@{$stateref}[$count], \@{$stateref}[$count+2]);
 		}
 	}
+	
+	
 }
 
 sub MixColumns{
@@ -344,6 +391,25 @@ sub print_hexkey{
 			print "\n";
 		}
 	}
+}
+
+sub print_block{
+
+    my @key = @_;
+	my $count = 0;
+	foreach my $i (@key){
+		$count++;
+		if($i < 16){
+			printf("0%x ",$i);
+		}
+		else{
+			printf("%x ",$i);
+		}
+		if($count % 4 == 0){
+			print "\n";
+		}
+	}
+	print "\n";
 }
 
 sub rcon{
@@ -545,12 +611,45 @@ sub gmul_inverse{
 	}
 }
 
+sub expand_key128{
+	
+	my $inref = shift;
+    my @t;
+        
+    #/* c is 16 because the first sub-key is the user-supplied key */
+    my $c = 16;
+	my $i = 1;
+    my $a;
+
+        #/* We need 11 sets of sixteen bytes each for 128-bit mode */
+        while($c < 176) {
+                #/* Copy the temporary variable over from the last 4-byte
+                # * block */
+                for($a = 0; $a < 4; $a++){
+                    $t[$a] = @{$inref}[$a + $c - 4];
+        		}
+                #/* Every four blocks (of four bytes), 
+                # * do a complex calculation */
+                if($c % 16 == 0) {
+					schedule_core(\@t,$i);
+					$i++;
+				}
+		        for($a = 0; $a < 4; $a++) {
+                    @{$inref}[$c] = @{$inref}[$c - 16] ^ $t[$a];
+                    $c++;
+                }
+        }
+        modkey( \@{$inref});
+		return get_roundkeys(\@{$inref});
+}
+
 sub expand_key{
 	my $inref = shift;
     my @t;
     my $c = 32;
 	my $i = 1;
     my $a;
+    
     while($c < 240) {
         # Copy the temporary variable over */
         for($a = 0; $a < 4; $a++){
