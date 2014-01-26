@@ -5,9 +5,9 @@ use strict;
 #package EncryptAES;
 
 my @key1 =  (0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
+			 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
 			
 my @key2 = (0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 			0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -25,18 +25,41 @@ my @key3 = (0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
 
 
 
-my $key =     hextoasciistring('2b7e151628aed2a6abf7158809cf4f3c');
-my $phrase =  hextoasciistring('6bc1bee22e409f96e93d7e117393172a');
+#my $key =     hextoasciistring('2b7e151628aed2a6abf7158809cf4f3c');
+#my $phrase3 =  hextoasciistring('6bc1bee22e409f96e93d7e117393172a');
 
-encryptblock($phrase, $key);
+#encryptblock($phrase, $key);
 
+my $phrase2 = '1234567890123456';
+my $key = '12345678901234567890123456789012';
 
+my %block = ascii_string_to_block($phrase2);
+print_block(\%block);
 
+encrypt_block(\%block);
 
-#2f2bfb67c5009972c92eaa0d866737b26efdb4a35648646ac365a5e113d16434
+sub ascii_string_to_block{
+	my $string = shift;
+	my @array = ascii_string_to_key_array($string);
+	my %block = build_block(\@array);
+	return %block;
+}
+
+sub hex_string_to_block{
+	my $string = shift;
+	my @array = hex_string_to_key_array($string);
+	my %block = build_block(\@array);
+	return %block;
+	
+}
+
 
 sub Encrypt{
 
+	my $plain_text = shift;
+	my $key = shift;
+	
+	
 
 
 
@@ -54,6 +77,83 @@ sub column_major{
 	}
 	return @newblock;
 }
+
+sub  ascii_string_to_key_array{
+	
+	my $ascii_string = shift;
+	my @dec_string;
+	for my $pos (0..(length($ascii_string)-1)){
+		my $char = substr($ascii_string, $pos, 1);
+		push @dec_string, ord($char);
+	}
+	return @dec_string;
+}
+
+sub hex_string_to_key_array {
+	
+	my $hexstring = shift;
+	
+	my @key;
+	my $hex_byte = "";
+	my $hex_count = 0;
+	for my $pos (0..length($hexstring)){
+		$hex_count++;
+		$hex_byte .= substr($hexstring, $pos, 1);
+		if($hex_count % 2 == 0){
+			push @key, $hex_byte;
+			$hex_byte = "";
+			$hex_count = 0;
+		}
+	}
+		
+	return @key;
+	
+}
+
+sub build_block{
+	
+	my $key_ref = shift;
+	
+	my %block;
+	
+	for my $x_pos (0..3){
+		for my $y_pos (0..3){
+			my $new_pos = ($y_pos*4+$x_pos);
+			$block{$new_pos} = @{$key_ref}[$x_pos*4+$y_pos];
+		}
+	}
+	return %block;
+}
+
+sub print_block{
+	
+	my $block_ref = shift;
+	my $count = 0;
+	while($block_ref->{$count}){
+		
+		my $hex_char = sprintf("%x",$block_ref->{$count});
+		if($block_ref->{$count} < 16){
+			$hex_char = '0' . $hex_char
+		}
+		$hex_char = uc($hex_char);
+		print "$hex_char  ";
+		
+		$count++;
+		if(($count % 4) == 0){
+			print "\n";
+		}
+	}
+}
+
+sub encrypt_block{
+	#my $text_block_ref = shift;
+	my $key_block_ref = shift;
+	
+	my $key_sched_block = expand_key128($key_block_ref);
+	print_block($key_sched_block);
+}
+
+
 
 sub encryptblock{
 	my $phrase = shift;
@@ -167,7 +267,7 @@ sub get_roundkeys{
 	my @roundkeys;
 	my $currentroundkey = "";
 	my $count = 0;
-	foreach my $byte (@{$keyref}){
+	foreach my $byte (%{$keyref}){
 		$currentroundkey .= chr($byte);
 		$count++;
 		if(($count % 16) == 0){
@@ -370,7 +470,16 @@ sub modkey{
 	my $inref = shift;
 	my $count = 0;
 	foreach my $i (@{$inref}){
-		@{$inref}[$count] = $i %256;
+		@{$inref}[$count] = $i % 256;
+		$count++;
+	}
+}
+
+sub mod_block{
+	my $inref = shift;
+	my $count = 0;
+	while($inref->{$count}){
+		$inref->{$count} = $inref->{$count} % 256;
 		$count++;
 	}
 }
@@ -393,7 +502,7 @@ sub print_hexkey{
 	}
 }
 
-sub print_block{
+sub print_block2{
 
     my @key = @_;
 	my $count = 0;
@@ -613,65 +722,71 @@ sub gmul_inverse{
 
 sub expand_key128{
 	
-	my $inref = shift;
-    my @t;
+	my $blockref = shift;
+	my %block = %{$blockref};
+    my @temp_array;
         
     #/* c is 16 because the first sub-key is the user-supplied key */
-    my $c = 16;
-	my $i = 1;
-    my $a;
+    my $byte_count = 16;
+	my $index = 1;
 
         #/* We need 11 sets of sixteen bytes each for 128-bit mode */
-        while($c < 176) {
+        while($byte_count < 176) {
                 #/* Copy the temporary variable over from the last 4-byte
                 # * block */
-                for($a = 0; $a < 4; $a++){
-                    $t[$a] = @{$inref}[$a + $c - 4];
+                for my $count (0..3){
+                    $temp_array[$count] = $block{$count + $byte_count - 4};
+                    #print $temp_array[$count] . "\n";
+                    
         		}
                 #/* Every four blocks (of four bytes), 
                 # * do a complex calculation */
-                if($c % 16 == 0) {
-					schedule_core(\@t,$i);
-					$i++;
+                if($byte_count % 16 == 0) {
+					schedule_core(\@temp_array,$index);
+					$index++;
 				}
-		        for($a = 0; $a < 4; $a++) {
-                    @{$inref}[$c] = @{$inref}[$c - 16] ^ $t[$a];
-                    $c++;
+		        for my $count (0..3) {
+                    $block{$byte_count} = $block{$byte_count - 16} ^ $temp_array[$count];
+                    $byte_count++;
                 }
         }
-        modkey( \@{$inref});
-		return get_roundkeys(\@{$inref});
+        mod_block( \%block);
+		return \%block;
 }
 
 sub expand_key{
-	my $inref = shift;
-    my @t;
-    my $c = 32;
-	my $i = 1;
-    my $a;
+	my $block_ref = shift;
+	my %block = %{$block_ref};
+    my @temp_array;
+    my $byte_count = 32;
+	my $schedule_index = 1;
+    my $array_index;
     
-    while($c < 240) {
+    while($byte_count < 240) {
         # Copy the temporary variable over */
-        for($a = 0; $a < 4; $a++){
-			$t[$a] = @{$inref}[$a + $c - 4];
+        for($array_index = 0; $array_index < 4; $array_index++){
+			$temp_array[$array_index] = $block{$array_index + $byte_count - 4};
+			#print ($array_index + $byte_count - 4) ." = $temp_array[$array_index]\n";
+			<STDIN>;
 		}
         # Every eight sets, do a complex calculation */
-        if($c % 32 == 0) {
-            schedule_core(\@t,$i);
-			$i++;
+        if($byte_count % 32 == 0) {
+            schedule_core(\@temp_array,$schedule_index);
+			$schedule_index++;
 		}
         # For 256-bit keys, we add an extra sbox to the
         # calculation */
-        if($c % 32 == 16) {
-            for($a = 0; $a < 4; $a++){
-                $t[$a] = sbox($t[$a]);
+        if($byte_count % 32 == 16) {
+            for($array_index = 0; $array_index < 4; $array_index++){
+                $temp_array[$array_index] = sbox($temp_array[$array_index]);
 			}
 		}
-        for($a = 0; $a < 4; $a++) {
-			@{$inref}[$c] = @{$inref}[$c - 32] ^ $t[$a];
-            $c++;
+        for($array_index = 0; $array_index < 4; $array_index++) {
+			$block{$byte_count} = $block{$byte_count - 32} ^ $temp_array[$array_index];
+            $byte_count++;
         }
 	}
-	modkey( \@{$inref});
-	return get_roundkeys(\@{$inref});
+	mod_block( \%block);
+	print_block(\%block);
+	#return get_roundkeys(\@{$inref});
 }
